@@ -1,0 +1,24 @@
+flowchart TD
+    A([🕘 Daily Content Schedule\nTrigger at 9:00 AM]) --> B[📋 Fetch Pending Topic\nGoogle Sheets - Read Row\nSheet: n8n · gid=0]
+    B --> C{✅ Check Topic Exists\nIF Topic field is not empty}
+
+    C -- Topic Found --> D[🔍 Tavily Research\nHTTP POST to Tavily Search API\nadvanced depth · 5 results]
+    C -- No Topic --> E([🚫 No Topic Found\nGraceful Exit])
+
+    D --> F[📦 Aggregate Research Data\nAggregate results field only\ninto research_data array]
+    F --> G[🧹 Prepare Research Context\nExtract topic + map results titles\nFallback: No research data available]
+
+    G --> H[💼 Generate LinkedIn Post\nGemini 2.5 Flash · Professional tone\n150–200 words · 2-3 hashtags\ntemp=0.7 · maxOutputTokens=1000]
+    H --> I[🐦 Generate X Post\nGemini 2.5 Flash · Punchy & concise\nUnder 280 chars · 1-2 hashtags\ntemp=0.8 · maxOutputTokens=200]
+    I --> J[📝 Generate Blog Summary\nGemini 2.5 Flash · Comprehensive\n250–350 words · Subheadings\ntemp=0.7 · maxOutputTokens=2048]
+
+    J --> K[🔗 Combine All Content\nMerge LinkedIn + X + Blog\nSet Status=Completed · Add Published_Date\nRead output via content.parts0.text]
+    K --> L[✏️ Update Google Sheet\nWrite all content back\nMatch by Topic column]
+
+    style A fill:#4A90D9,color:#fff,stroke:#2c6fad
+    style E fill:#E57373,color:#fff,stroke:#c62828
+    style L fill:#66BB6A,color:#fff,stroke:#388e3c
+    style D fill:#FFA726,color:#fff,stroke:#e65100
+    style H fill:#1A73E8,color:#fff,stroke:#0d47a1
+    style I fill:#1A73E8,color:#fff,stroke:#0d47a1
+    style J fill:#1A73E8,color:#fff,stroke:#0d47a1

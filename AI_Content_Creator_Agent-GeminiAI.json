@@ -1,0 +1,622 @@
+{
+  "name": "AI Content Creator Agent",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 9
+            }
+          ]
+        }
+      },
+      "id": "85f35426-9168-44d5-8668-b9acf0b47e10",
+      "name": "Daily Content Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -624,
+        -320
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1sL2pPvHiDDCk9DAROL-ppI-tHcno58z4z4NPw_m8zP4",
+          "mode": "list",
+          "cachedResultName": "n8n",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1sL2pPvHiDDCk9DAROL-ppI-tHcno58z4z4NPw_m8zP4/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "n8n",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1sL2pPvHiDDCk9DAROL-ppI-tHcno58z4z4NPw_m8zP4/edit#gid=0"
+        },
+        "options": {}
+      },
+      "id": "e7fefb4e-90f7-434e-87d3-8c414fab51f7",
+      "name": "Fetch Pending Topic",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -400,
+        -320
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "2g7ITLNSlTzLtnR2",
+          "name": "Google Sheets OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "1",
+              "leftValue": "={{ $json['Topic '] }}",
+              "operator": {
+                "type": "string",
+                "operation": "exists"
+              },
+              "rightValue": ""
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "fecf3ea9-71ec-4edf-9036-1109c3e107fa",
+      "name": "Check Topic Exists",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -176,
+        -320
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.tavily.com/search",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {\"api_key\": \"<paste-your-API>\", \"query\": $json[\"Topic \"], \"search_depth\": \"advanced\", \"max_results\": 5} }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "6e80536c-cf45-4c6c-acd0-de1373c3330a",
+      "name": "Tavily Research",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        48,
+        -416
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "D4dPVj0VXQzXXH4i",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "destinationFieldName": "research_data",
+        "include": "specifiedFields",
+        "fieldsToInclude": "results",
+        "options": {}
+      },
+      "id": "74210284-adf9-4968-808e-8d0be0f9b4ef",
+      "name": "Aggregate Research Data",
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [
+        272,
+        -416
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "1",
+              "name": "topic",
+              "value": "={{ $(\"Fetch Pending Topic\").first().json[\"Topic \"] }}",
+              "type": "string"
+            },
+            {
+              "id": "2",
+              "name": "research_summary",
+              "value": "={{ $json.research_data?.[0]?.results?.map(r => r.title + \": \" + r.content).join(\"\\n\\n\") ?? \"No research data available\" }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "24fadf3a-ff6a-483f-a060-532151a6545e",
+      "name": "Prepare Research Context",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        496,
+        -416
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "1",
+              "name": "Topic",
+              "value": "={{ $(\"Fetch Pending Topic\").first().json[\"Topic \"] }}",
+              "type": "string"
+            },
+            {
+              "id": "2",
+              "name": "Status",
+              "value": "Completed",
+              "type": "string"
+            },
+            {
+              "id": "3",
+              "name": "LinkedIn_Post",
+              "value": "={{ $('Generate LinkedIn Post').item.json.content.parts[0].text }}",
+              "type": "string"
+            },
+            {
+              "id": "4",
+              "name": "X_Post",
+              "value": "={{ $('Generate X Post').item.json.content.parts[0].text }}",
+              "type": "string"
+            },
+            {
+              "id": "5",
+              "name": "Blog_Summary",
+              "value": "={{ $json.content.parts[0].text }}",
+              "type": "string"
+            },
+            {
+              "id": "6",
+              "name": "Published_Date",
+              "value": "={{ $now.toFormat(\"yyyy-MM-dd\") }}",
+              "type": "string"
+            },
+            {
+              "id": "7",
+              "name": "row_number",
+              "value": "={{ $(\"Fetch Pending Topic\").first().json.row_number }}",
+              "type": "number"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "7d8637ff-f688-48c8-92e4-c97c21686240",
+      "name": "Combine All Content",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1776,
+        -416
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1sL2pPvHiDDCk9DAROL-ppI-tHcno58z4z4NPw_m8zP4",
+          "mode": "list",
+          "cachedResultName": "n8n",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1sL2pPvHiDDCk9DAROL-ppI-tHcno58z4z4NPw_m8zP4/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "n8n",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1sL2pPvHiDDCk9DAROL-ppI-tHcno58z4z4NPw_m8zP4/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "X_Post": "={{ $json.X_Post }}",
+            "Blog_Summary": "={{ $json.Blog_Summary }}",
+            "Published_Date": "={{ $json.Published_Date }}",
+            "Status ": "={{ $json.Status }}",
+            "LinkedIn_Post ": "={{ $json.LinkedIn_Post }}",
+            "row_number": 0,
+            "Topic ": "={{ $json.Topic }}"
+          },
+          "matchingColumns": [
+            "Topic "
+          ],
+          "schema": [
+            {
+              "id": "Topic ",
+              "displayName": "Topic ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Status ",
+              "displayName": "Status ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "LinkedIn_Post ",
+              "displayName": "LinkedIn_Post ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "X_Post",
+              "displayName": "X_Post",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Blog_Summary",
+              "displayName": "Blog_Summary",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Published_Date",
+              "displayName": "Published_Date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "readOnly": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "b4d34361-1172-4036-887e-a6fc8c854223",
+      "name": "Update Google Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        2000,
+        -416
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "2g7ITLNSlTzLtnR2",
+          "name": "Google Sheets OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "1",
+              "name": "message",
+              "value": "No pending topics found in the sheet",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "d7156de1-abb2-47a0-9dfc-c2736038cbde",
+      "name": "No Topic Found",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        48,
+        -224
+      ]
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-2.5-flash",
+          "mode": "list",
+          "cachedResultName": "models/gemini-2.5-flash"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "={{ \"Topic: \" + $json.topic + \"\\n\\nResearch Context:\\n\" + $json.research_summary + \"\\n\\nCreate a LinkedIn post about this topic.\" }}"
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {
+          "systemMessage": "You are a professional LinkedIn content creator. Create engaging, professional posts that:\n- Start with a compelling hook\n- Use clear paragraphs with line breaks\n- Include relevant insights and actionable takeaways\n- End with a thought-provoking question\n- Use 2-3 relevant hashtags\n- Keep it between 150-200 words\n- Maintain a professional yet conversational tone",
+          "maxOutputTokens": 1000,
+          "temperature": 0.7
+        }
+      },
+      "id": "0928edb0-4f3b-4082-be2c-4e348ee5e76d",
+      "name": "Generate LinkedIn Post",
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.1,
+      "position": [
+        720,
+        -416
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "7MT12seV5AN5tLHp",
+          "name": "Google Gemini(PaLM) Api account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-2.5-flash",
+          "mode": "list",
+          "cachedResultName": "models/gemini-2.5-flash"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "={{ \"Topic: \" + $(\"Prepare Research Context\").item.json.topic + \"\\n\\nResearch Context:\\n\" + $(\"Prepare Research Context\").item.json.research_summary + \"\\n\\nCreate a tweet about this topic.\" }}"
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {
+          "systemMessage": "You are a social media expert for X (Twitter). Create concise, engaging posts that:\n- Are under 280 characters\n- Start with a strong hook or insight\n- Use 1-2 relevant hashtags\n- Include an emoji for visual appeal\n- Are punchy and shareable\n- Drive engagement",
+          "maxOutputTokens": 200,
+          "temperature": 0.8
+        }
+      },
+      "id": "76c2abdf-cfa1-4ad5-a206-414dfb6fe570",
+      "name": "Generate X Post",
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.1,
+      "position": [
+        1072,
+        -416
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "7MT12seV5AN5tLHp",
+          "name": "Google Gemini(PaLM) Api account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-2.5-flash",
+          "mode": "list",
+          "cachedResultName": "models/gemini-2.5-flash"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "={{ \"Topic: \" + $(\"Prepare Research Context\").item.json.topic + \"\\n\\nResearch Context:\\n\" + $(\"Prepare Research Context\").item.json.research_summary + \"\\n\\nCreate a comprehensive blog summary about this topic. Use all the research data provided to create detailed, informative content.\" }}"
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {
+          "systemMessage": "You are a professional blog writer. Create comprehensive, informative blog summaries that:\n- Are 250-350 words minimum (aim for detailed content)\n- Have a clear introduction that hooks the reader\n- Include multiple paragraphs covering different aspects of the topic\n- Incorporate specific insights, data points, and examples from the research\n- Use subheadings or clear topic transitions\n- Provide actionable takeaways or key learnings\n- End with a strong conclusion or call-to-action\n- Use a professional yet accessible tone\n- Make full use of the research context provided - do not summarize briefly, expand on the details",
+          "maxOutputTokens": 2048,
+          "temperature": 0.7
+        }
+      },
+      "id": "992e0daf-1d21-4937-a868-29b1244c8ca9",
+      "name": "Generate Blog Summary",
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.1,
+      "position": [
+        1424,
+        -416
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "7MT12seV5AN5tLHp",
+          "name": "Google Gemini(PaLM) Api account 2"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Daily Content Schedule": {
+      "main": [
+        [
+          {
+            "node": "Fetch Pending Topic",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Pending Topic": {
+      "main": [
+        [
+          {
+            "node": "Check Topic Exists",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Topic Exists": {
+      "main": [
+        [
+          {
+            "node": "Tavily Research",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Topic Found",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tavily Research": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Research Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate Research Data": {
+      "main": [
+        [
+          {
+            "node": "Prepare Research Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Research Context": {
+      "main": [
+        [
+          {
+            "node": "Generate LinkedIn Post",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Combine All Content": {
+      "main": [
+        [
+          {
+            "node": "Update Google Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "No Topic Found": {
+      "main": [
+        []
+      ]
+    },
+    "Generate LinkedIn Post": {
+      "main": [
+        [
+          {
+            "node": "Generate X Post",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate X Post": {
+      "main": [
+        [
+          {
+            "node": "Generate Blog Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Blog Summary": {
+      "main": [
+        [
+          {
+            "node": "Combine All Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "4305aa58-2f55-4881-8ad6-305a4131ca8a",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "61d5a7407931935b7b8054aab7d6d0c9d71c7749757610e0d0f4726279547003"
+  },
+  "id": "LCzlg5BOseMolRxk",
+  "tags": []
+}
