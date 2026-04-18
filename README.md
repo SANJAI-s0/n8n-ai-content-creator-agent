@@ -1,5 +1,6 @@
 # AI-Powered Content Creator Agent — n8n Workflow
 
+[![GitHub Repo](https://img.shields.io/badge/GitHub-SANJAI--s0%2Fn8n--ai--content--creator--agent-181717?style=for-the-badge&logo=github&logoColor=white)](https://github.com/SANJAI-s0/n8n-ai-content-creator-agent)
 ![n8n](https://img.shields.io/badge/Built%20with-n8n-EF6C00?style=for-the-badge&logo=n8n&logoColor=white)
 ![Gemini](https://img.shields.io/badge/Google-Gemini%202.5%20Flash-4285F4?style=for-the-badge&logo=google&logoColor=white)
 ![Tavily](https://img.shields.io/badge/Research-Tavily%20Search-0EA5E9?style=for-the-badge&logo=googlechrome&logoColor=white)
@@ -369,10 +370,14 @@ This ensures the AI always has:
 ### Step-by-Step Setup
 
 **Step 1 — Import the Workflow**
-1. Open your n8n instance
-2. Click `+` → `Import from file`
-3. Select `AI_Content_Creator_Agent-GeminiAI.json`
-4. The workflow will load with all nodes pre-configured
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/SANJAI-s0/n8n-ai-content-creator-agent.git
+   ```
+2. Open your n8n instance
+3. Click `+` → `Import from file`
+4. Select `AI_Content_Creator_Agent-GeminiAI.json`
+5. The workflow will load with all nodes pre-configured
 
 **Step 2 — Configure Google Sheets Credential**
 1. Go to n8n Settings → Credentials → New
