@@ -1,0 +1,397 @@
+{
+  "name": "AI Content Creator Agent",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 6
+            }
+          ]
+        }
+      },
+      "id": "node_schedule_trigger",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "operation": "readOrSearch",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Sheet1",
+          "mode": "name"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "Status",
+              "lookupValue": "Pending"
+            }
+          ]
+        },
+        "options": {
+          "returnFirstMatch": true
+        }
+      },
+      "id": "node_google_sheets_read",
+      "name": "Get Pending Topic",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.4,
+      "position": [460, 300],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_GSHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "cond_has_topic",
+              "leftValue": "={{ $json.Topic }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "node_if_topic_exists",
+      "name": "Topic Found?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.tavily.com/search",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "json",
+        "body": {
+          "query": "={{ $('Get Pending Topic').item.json.Topic }}",
+          "search_depth": "advanced",
+          "include_answer": true,
+          "include_raw_content": false,
+          "max_results": 8,
+          "include_domains": [],
+          "exclude_domains": []
+        },
+        "options": {}
+      },
+      "id": "node_tavily_search",
+      "name": "Tavily Research",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [900, 220],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "YOUR_TAVILY_CREDENTIAL_ID",
+          "name": "Tavily API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "results",
+        "options": {}
+      },
+      "id": "node_split_results",
+      "name": "Split Search Results",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [1120, 220]
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "destinationFieldName": "research_items",
+        "options": {}
+      },
+      "id": "node_aggregate",
+      "name": "Aggregate Research",
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [1340, 220]
+    },
+    {
+      "parameters": {
+        "jsCode": "const topic = $('Get Pending Topic').item.json.Topic;\nconst tavilyAnswer = $('Tavily Research').item.json.answer || '';\nconst items = $input.item.json.research_items || [];\n\nconst snippets = items\n  .map(r => `Source: ${r.url}\\nTitle: ${r.title}\\nContent: ${r.content}`)\n  .join('\\n\\n---\\n\\n');\n\nconst summary = `TOPIC: ${topic}\\n\\nQUICK ANSWER: ${tavilyAnswer}\\n\\nDETAILED SOURCES:\\n${snippets}`;\n\nreturn [{\n  json: {\n    topic,\n    research_summary: summary,\n    row_index: $('Get Pending Topic').item.json.row_number\n  }\n}];\n"
+      },
+      "id": "node_prepare_research",
+      "name": "Prepare Research Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1560, 220]
+    },
+    {
+      "parameters": {
+        "resource": "chat",
+        "operation": "sendMessage",
+        "model": {
+          "__rl": true,
+          "value": "gpt-4o",
+          "mode": "list",
+          "cachedResultName": "gpt-4o"
+        },
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "You are an expert LinkedIn content strategist specializing in thought leadership and B2B engagement. Your writing style is professional yet conversational, insightful, and authoritative. You craft posts that spark meaningful professional conversations.\n\nGuidelines:\n- Length: 150–300 words\n- Open with a bold hook or surprising stat (no generic openers like 'Excited to share')\n- Use short punchy paragraphs (1–3 sentences max)\n- Include 2–3 key insights from the research\n- End with a thought-provoking question to drive comments\n- Use 3–5 relevant hashtags at the end\n- Add strategic line breaks for readability\n- Tone: confident, knowledgeable, human — not corporate or salesy\n- Do NOT use em-dashes (—) excessively\n- Output ONLY the post text, nothing else"
+            },
+            {
+              "role": "user",
+              "content": "Write a LinkedIn post based on this research:\n\n{{ $json.research_summary }}\n\nTopic: {{ $json.topic }}"
+            }
+          ]
+        },
+        "options": {
+          "maxTokens": 600,
+          "temperature": 0.75
+        }
+      },
+      "id": "node_openai_linkedin",
+      "name": "Generate LinkedIn Post",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.4,
+      "position": [1780, 100],
+      "credentials": {
+        "openAiApi": {
+          "id": "YOUR_OPENAI_CREDENTIAL_ID",
+          "name": "OpenAI API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "chat",
+        "operation": "sendMessage",
+        "model": {
+          "__rl": true,
+          "value": "gpt-4o",
+          "mode": "list",
+          "cachedResultName": "gpt-4o"
+        },
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "You are a viral X (Twitter) content creator who specializes in making complex topics digestible and shareable. You understand the X algorithm and what makes people stop scrolling.\n\nGuidelines:\n- Maximum 260 characters (strict — count carefully)\n- Start with a hook: a fact, hot take, or bold statement\n- No filler phrases ('Thread:', 'Just dropping this', 'Unpopular opinion:')\n- Use plain, punchy language — no jargon unless unavoidable\n- Include 1–2 relevant hashtags max (only if they add value)\n- Optional: end with a question or CTA like 'Thoughts?' or 'Worth it?'\n- Tone: sharp, direct, slightly provocative — like a smart friend texting you\n- Output ONLY the tweet text, nothing else. No quotation marks around it."
+            },
+            {
+              "role": "user",
+              "content": "Write an X (Twitter) post based on this research:\n\n{{ $('Prepare Research Context').item.json.research_summary }}\n\nTopic: {{ $('Prepare Research Context').item.json.topic }}"
+            }
+          ]
+        },
+        "options": {
+          "maxTokens": 150,
+          "temperature": 0.8
+        }
+      },
+      "id": "node_openai_x",
+      "name": "Generate X Post",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.4,
+      "position": [1780, 300],
+      "credentials": {
+        "openAiApi": {
+          "id": "YOUR_OPENAI_CREDENTIAL_ID",
+          "name": "OpenAI API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "chat",
+        "operation": "sendMessage",
+        "model": {
+          "__rl": true,
+          "value": "gpt-4o",
+          "mode": "list",
+          "cachedResultName": "gpt-4o"
+        },
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "You are a professional blog writer and SEO content strategist. You write concise, informative blog summaries that serve as compelling introductions that make readers want to read the full article.\n\nGuidelines:\n- Length: exactly 150–200 words\n- Structure: 1 opening paragraph (context + why it matters) + 1 key insights paragraph + 1 closing sentence with a forward-looking takeaway\n- Use active voice throughout\n- Include naturally placed keywords for SEO without keyword stuffing\n- Tone: informative, credible, slightly editorial — like a well-researched magazine article\n- No bullet points or headers — flowing prose only\n- The summary should stand alone as a preview/teaser\n- Start directly with content — no title, no 'Introduction:' label\n- Output ONLY the blog summary text, nothing else"
+            },
+            {
+              "role": "user",
+              "content": "Write a blog summary based on this research:\n\n{{ $('Prepare Research Context').item.json.research_summary }}\n\nTopic: {{ $('Prepare Research Context').item.json.topic }}"
+            }
+          ]
+        },
+        "options": {
+          "maxTokens": 400,
+          "temperature": 0.65
+        }
+      },
+      "id": "node_openai_blog",
+      "name": "Generate Blog Summary",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.4,
+      "position": [1780, 500],
+      "credentials": {
+        "openAiApi": {
+          "id": "YOUR_OPENAI_CREDENTIAL_ID",
+          "name": "OpenAI API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const linkedin = $('Generate LinkedIn Post').item.json.message.content;\nconst xPost = $('Generate X Post').item.json.message.content;\nconst blog = $('Generate Blog Summary').item.json.message.content;\nconst topic = $('Prepare Research Context').item.json.topic;\nconst rowIndex = $('Prepare Research Context').item.json.row_index;\n\nconst now = new Date();\nconst publishedDate = now.toISOString().split('T')[0];\n\nreturn [{\n  json: {\n    topic,\n    row_index: rowIndex,\n    linkedin_post: linkedin,\n    x_post: xPost,\n    blog_summary: blog,\n    published_date: publishedDate\n  }\n}];\n"
+      },
+      "id": "node_combine_outputs",
+      "name": "Combine All Outputs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2000, 300]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Sheet1",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Status": "Completed",
+            "LinkedIn_Post": "={{ $json.linkedin_post }}",
+            "X_Post": "={{ $json.x_post }}",
+            "Blog_Summary": "={{ $json.blog_summary }}",
+            "Published_Date": "={{ $json.published_date }}"
+          },
+          "matchingColumns": ["Topic"],
+          "schema": [
+            { "id": "Topic", "displayName": "Topic", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
+            { "id": "Status", "displayName": "Status", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": false },
+            { "id": "LinkedIn_Post", "displayName": "LinkedIn_Post", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": false },
+            { "id": "X_Post", "displayName": "X_Post", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": false },
+            { "id": "Blog_Summary", "displayName": "Blog_Summary", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": false },
+            { "id": "Published_Date", "displayName": "Published_Date", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": false }
+          ]
+        },
+        "options": {}
+      },
+      "id": "node_google_sheets_update",
+      "name": "Update Google Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.4,
+      "position": [2220, 300],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_GSHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={ \"status\": \"completed\", \"topic\": \"{{ $('Prepare Research Context').item.json.topic }}\" }"
+      },
+      "id": "node_no_topic",
+      "name": "No Pending Topics",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [900, 420]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [[{ "node": "Get Pending Topic", "type": "main", "index": 0 }]]
+    },
+    "Get Pending Topic": {
+      "main": [[{ "node": "Topic Found?", "type": "main", "index": 0 }]]
+    },
+    "Topic Found?": {
+      "main": [
+        [{ "node": "Tavily Research", "type": "main", "index": 0 }],
+        [{ "node": "No Pending Topics", "type": "main", "index": 0 }]
+      ]
+    },
+    "Tavily Research": {
+      "main": [[{ "node": "Split Search Results", "type": "main", "index": 0 }]]
+    },
+    "Split Search Results": {
+      "main": [[{ "node": "Aggregate Research", "type": "main", "index": 0 }]]
+    },
+    "Aggregate Research": {
+      "main": [[{ "node": "Prepare Research Context", "type": "main", "index": 0 }]]
+    },
+    "Prepare Research Context": {
+      "main": [
+        [
+          { "node": "Generate LinkedIn Post", "type": "main", "index": 0 },
+          { "node": "Generate X Post", "type": "main", "index": 0 },
+          { "node": "Generate Blog Summary", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Generate LinkedIn Post": {
+      "main": [[{ "node": "Combine All Outputs", "type": "main", "index": 0 }]]
+    },
+    "Generate X Post": {
+      "main": [[{ "node": "Combine All Outputs", "type": "main", "index": 1 }]]
+    },
+    "Generate Blog Summary": {
+      "main": [[{ "node": "Combine All Outputs", "type": "main", "index": 2 }]]
+    },
+    "Combine All Outputs": {
+      "main": [[{ "node": "Update Google Sheet", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": ""
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "instanceId": "content-creator-agent-v1"
+  },
+  "pinData": {},
+  "versionId": "1.0.0",
+  "triggerCount": 0,
+  "tags": [
+    { "id": "tag_ai_content", "name": "AI Content" },
+    { "id": "tag_automation", "name": "Automation" }
+  ]
+}
